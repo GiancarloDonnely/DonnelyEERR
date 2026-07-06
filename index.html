@@ -1267,40 +1267,79 @@ function normLabel(s){
     .replace(/[^a-z0-9]/g,'');
 }
 
-// Mapea el nombre de concepto (fila del Sheet) a la clave interna del dashboard.
+// Mapea el nombre EXACTO del subtotal (fila del EERR) a la clave interna.
+// Reconoce la hoja "Estado de Resultados" de Donnely tal como está armada.
 function labelToKey(raw){
   const n=normLabel(raw);
-  if(n.includes('impuesto')||n.includes('ppm')) return 'imp';
-  if(n.includes('deprec')) return 'dep';
-  if(n.includes('diferencia')&&n.includes('cambio')) return 'dif';
-  if(n.includes('financier')) return 'fin';
-  if(n.includes('venta')&&n.includes('gasto')) return 'vta';   // Gastos de ventas
-  if(n.includes('admin')) return 'adm';                         // Gastos administración
-  if(n.includes('cogs')||n.includes('costo')) return 'cogs';   // COGS total
-  if(n.includes('venta')) return 'ventas';                      // Ventas netas
+  // — subtotales oficiales del EERR (prioridad por especificidad) —
+  if(n.includes('ventasnetas')) return 'ventas';                       // "VENTAS NETAS"
+  if(n.includes('costodeventastotal')||n==='costodeventas') return 'cogs'; // "COSTO DE VENTAS TOTAL"
+  if(n.includes('totalgastosdeadministracion')) return 'adm';          // "TOTAL GASTOS DE ADMINISTRACIÓN"
+  if(n.includes('totalgastosdeventas')) return 'vta';                  // "TOTAL GASTOS DE VENTAS"
+  if(n.includes('gastosfinancieros')) return 'fin';                    // "(-) Gastos financieros..."
+  if(n.includes('diferenciasdecambio')) return 'dif';                  // "(+/-) Diferencias de cambio..."
+  if(n.includes('depreciacion')) return 'dep';                         // "(-) Depreciación de activos fijos"
+  if(n.includes('impuesto')&&n.includes('renta')) return 'imp';        // "(-) Impuesto a la Renta..."
+  if(n.includes('ppm')) return 'imp';
+  // — respaldo: plantilla simple (hoja "Datos") —
+  if(n==='ventasnetas'||n==='ventas') return 'ventas';
+  if(n==='cogstotal'||n==='cogs') return 'cogs';
+  return null;
+}
+
+// Detecta en qué columnas están los meses. En el EERR las cifras van en
+// columnas alternadas (CLP, %, CLP, %...). Devuelve {cols, meses, conceptCol}.
+function detectMonthColumns(rows){
+  const MES_RE=/^(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)/i;
+  for(let r=0;r<Math.min(rows.length,15);r++){
+    const cells=rows[r];
+    const cols=[],meses=[];
+    for(let c=0;c<cells.length;c++){
+      const val=String(cells[c]||'').trim();
+      if(MES_RE.test(val)){
+        cols.push(c);
+        meses.push(val.charAt(0).toUpperCase()+val.slice(1).toLowerCase());
+      }
+    }
+    if(cols.length>=2){
+      // la columna del concepto es la última no-mes ANTES del primer mes
+      const firstMes=cols[0];
+      let conceptCol=0;
+      for(let c=firstMes-1;c>=0;c--){ conceptCol=c; break; }
+      return {cols,meses,headerRow:r,conceptCol};
+    }
+  }
   return null;
 }
 
 function parseSheetCSV(text){
-  const lines=text.split(/\r?\n/).filter(l=>l.trim().length);
-  if(lines.length<2) return null;
-  const header=splitCSVLine(lines[0]);
-  const mesesRaw=header.slice(1).filter(m=>m.trim().length);
-  if(!mesesRaw.length) return null;
+  const rawLines=text.split(/\r?\n/).filter(l=>l.trim().length);
+  if(rawLines.length<2) return null;
+  const rows=rawLines.map(splitCSVLine);
+
+  const mc=detectMonthColumns(rows);
+  if(!mc) return null;
+  const {cols,meses,conceptCol}=mc;
+
   const Dnew={ventas:[],cogs:[],adm:[],vta:[],fin:[],dif:[],dep:[],imp:[]};
-  Object.keys(Dnew).forEach(k=>{ Dnew[k]=mesesRaw.map(()=>0); });
-  for(let r=1;r<lines.length;r++){
-    const row=splitCSVLine(lines[r]);
-    if(!row[0]) continue;
-    const key=labelToKey(row[0]);
+  Object.keys(Dnew).forEach(k=>{ Dnew[k]=meses.map(()=>0); });
+
+  for(let r=0;r<rows.length;r++){
+    const cells=rows[r];
+    const key=labelToKey(cells[conceptCol]||'');
     if(!key) continue;
-    for(let c=0;c<mesesRaw.length;c++){
-      Dnew[key][c]=parseNum(row[c+1]);
+    // solo toma la PRIMERA aparición de cada subtotal (evita duplicados)
+    if(Dnew['_seen_'+key]) continue;
+    for(let i=0;i<cols.length;i++){
+      Dnew[key][i]=parseNum(cells[cols[i]]);
     }
+    Dnew['_seen_'+key]=true;
   }
-  // Ventas es obligatorio y no puede ser todo ceros
+  // limpia flags temporales
+  Object.keys(Dnew).forEach(k=>{ if(k.startsWith('_seen_')) delete Dnew[k]; });
+
   if(!Dnew.ventas.some(v=>v!==0)) return null;
-  return {D:Dnew, MESES:mesesRaw};
+  return {D:Dnew, MESES:meses};
 }
 
 (async function initData(){
