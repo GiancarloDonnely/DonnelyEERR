@@ -224,6 +224,7 @@ input[type=range].red::-webkit-slider-thumb{background:#FF6B6B;box-shadow:0 0 0 
   <button class="tabbtn active" data-tab="consolidado">📊 Consolidado</button>
   <button class="tabbtn" data-tab="mensual">📅 Mensual</button>
   <button class="tabbtn" data-tab="escenarios">🎯 Escenarios</button>
+  <button class="tabbtn" data-tab="proyeccion">📈 Proyección</button>
 </div>
 
 <!-- ===== TAB CONSOLIDADO ===== -->
@@ -443,7 +444,7 @@ input[type=range].red::-webkit-slider-thumb{background:#FF6B6B;box-shadow:0 0 0 
         <div class="slider-ticks"><span>$50M</span><span>$200M</span><span>$400M</span><span>$600M</span></div>
       </div>
 
-      <button class="reset-btn" id="btn_reset">↺ Restablecer valores actuales H1</button>
+      <button class="reset-btn" id="btn_reset">↺ Restablecer al escenario óptimo</button>
     </div>
 
     <div class="esc-panel">
@@ -463,9 +464,9 @@ input[type=range].red::-webkit-slider-thumb{background:#FF6B6B;box-shadow:0 0 0 
   <div>
     <!-- PE Hero -->
     <div class="pe-hero">
-      <div class="lbl">Punto de equilibrio mensual</div>
+      <div class="lbl">Punto de equilibrio · <span id="r_pe_periodo">Consolidado</span></div>
       <div class="val" id="r_pe">—</div>
-      <div class="sub">PE anual: <b id="r_pe_anual" style="color:var(--txt)">—</b></div>
+      <div class="sub"><b id="r_pe_anual" style="color:var(--txt)">—</b></div>
       <div class="arrow" id="r_pe_arrow"></div>
     </div>
 
@@ -484,7 +485,7 @@ input[type=range].red::-webkit-slider-thumb{background:#FF6B6B;box-shadow:0 0 0 
     </div>
     <div class="kpi-row">
       <div class="kpi-sm" style="--accent:var(--teal)">
-        <div class="lbl">EBIT proyectado</div>
+        <div class="lbl">EBIT del período</div>
         <div class="val" id="r_ebit" style="color:var(--teal)">—</div>
         <div class="delta" id="rd_ebit"></div>
       </div>
@@ -503,13 +504,13 @@ input[type=range].red::-webkit-slider-thumb{background:#FF6B6B;box-shadow:0 0 0 
       <div class="kpi-sm" style="--accent:var(--amber)">
         <div class="lbl">Ahorro vs. actual $</div>
         <div class="val" id="r_ahorro" style="color:var(--amber);font-size:16px">—</div>
-        <div class="delta" style="font-size:10px;color:var(--sub)">CF mensual vs. actual</div>
+        <div class="delta" style="font-size:10px;color:var(--sub)">Ahorro potencial al óptimo</div>
       </div>
     </div>
 
     <!-- Waterfall visual -->
     <div class="esc-panel" style="margin-bottom:14px">
-      <h2>Cascada de resultado proyectado <span style="color:var(--sub);text-transform:none;font-size:10px;letter-spacing:0;font-weight:400">— a ventas proyectadas</span></h2>
+      <h2>Cascada de resultado <span style="color:var(--sub);text-transform:none;font-size:10px;letter-spacing:0;font-weight:400">— <span id="wf_esc_period">consolidado</span> (real)</span></h2>
       <div id="wf_esc_wrap" style="display:flex;gap:4px;height:150px;align-items:flex-end;padding:0 2px"></div>
       <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:9.5px;color:var(--sub)" id="wf_esc_labels"></div>
     </div>
@@ -535,6 +536,72 @@ input[type=range].red::-webkit-slider-thumb{background:#FF6B6B;box-shadow:0 0 0 
 </div>
 
 </div><!-- /tab-escenarios -->
+
+<!-- ===== TAB PROYECCIÓN ===== -->
+<div class="tabview" id="tab-proyeccion">
+
+<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px">
+  <div>
+    <div style="font-size:16px;font-weight:700">Proyección Año Completo 2026 · Metas de Ventas</div>
+    <div style="font-size:12px;color:var(--sub);margin-top:3px">6 meses reales + 6 proyectados (jul–dic) · comparando estructura actual vs. óptima</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <div style="font-size:11px;color:var(--sub);background:var(--panel2);padding:7px 14px;border-radius:7px;border:1px solid var(--line)">
+      Meta ventas H2: $<span id="pr_meta_h2">—</span>M
+    </div>
+  </div>
+</div>
+
+<!-- KPI comparativos año completo -->
+<div class="grid kpis" style="margin-bottom:14px">
+  <div class="kpi" style="--accent:var(--teal)">
+    <div class="lbl">Ventas año completo</div>
+    <div class="val" id="pr_ventas" style="color:var(--teal);font-size:22px">—</div>
+    <div class="meta" id="pr_ventas_sub">—</div>
+  </div>
+  <div class="kpi" style="--accent:var(--green)">
+    <div class="lbl">Utilidad neta · actual</div>
+    <div class="val" id="pr_un_act" style="color:var(--sub);font-size:22px">—</div>
+    <div class="meta">Si mantienes estructura actual</div>
+  </div>
+  <div class="kpi" style="--accent:var(--gold)">
+    <div class="lbl">Utilidad neta · óptima</div>
+    <div class="val" id="pr_un_opt" style="color:var(--gold);font-size:22px">—</div>
+    <div class="meta">Con estructura óptima Donnely</div>
+  </div>
+  <div class="kpi delta-card" style="--accent:var(--green)">
+    <div class="lbl">Ganancia adicional</div>
+    <div class="val" id="pr_gain" style="color:var(--green);font-size:22px">—</div>
+    <div class="meta">Óptima − actual (año)</div>
+  </div>
+</div>
+
+<!-- Editable projection table -->
+<div class="esc-panel" style="margin-bottom:14px">
+  <h2>Metas de ventas mensuales <span style="color:var(--sub);text-transform:none;font-size:10px;letter-spacing:0;font-weight:400">— jul–dic editables, haz clic en el valor</span></h2>
+  <div class="tbl-wrap">
+    <table class="scenario-compare" id="pr_tbl">
+      <thead><tr>
+        <th>Mes</th><th>Ventas</th><th>Tipo</th>
+        <th>U. Neta actual</th><th>U. Neta óptima</th><th>Δ</th>
+      </tr></thead>
+      <tbody id="pr_tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="grid charts" style="margin-bottom:14px">
+  <div class="card"><h3>Ventas mensuales · real vs proyectado</h3><div class="cwrap"><canvas id="pr_chVentas"></canvas></div></div>
+  <div class="card"><h3>Utilidad neta acumulada · actual vs óptima</h3><div class="cwrap"><canvas id="pr_chUtil"></canvas></div></div>
+</div>
+
+<div class="note" style="margin-bottom:20px">
+  <b>Cómo leer esta proyección.</b> Los meses jul–dic usan las metas de ventas que ingresaste. La columna <b>actual</b> aplica tu estructura de costos real del consolidado (COGS ~<span id="pr_cogs_act">—</span>, ADM ~$<span id="pr_adm_act">—</span>M/mes); la columna <b>óptima</b> aplica la estructura objetivo (COGS 45%, G.Ventas 5%, ADM $28M/mes). La diferencia es la ganancia que capturas al ejecutar el plan de optimización.
+</div>
+
+</div><!-- /tab-proyeccion -->
+
 
 
 <div class="note">
@@ -1033,13 +1100,10 @@ window._simInit=true;
 
   // ── escenarios de comparación (dependen del período base) ──
   function buildScenarios(){
-    const vb=VENTA_BASE, dep=ACT.dep_m;
+    const vb=VENTA_BASE;
     return [
       {n:periodoLabel(PERIODO)+' (real)', cogs:ACT.cogs_r,vta:ACT.vta_r,adm:ACT.adm_m,fin:ACT.fin_r,vtas:vb, real:true},
-      {n:'A · Solo ADM', cogs:ACT.cogs_r,vta:ACT.vta_r,adm:28e6,      fin:ACT.fin_r,vtas:vb},
-      {n:'B · Solo COGS',cogs:0.45,       vta:ACT.vta_r,adm:ACT.adm_m,fin:ACT.fin_r,vtas:vb},
-      {n:'C · Comercial',cogs:ACT.cogs_r,vta:0.07,      adm:ACT.adm_m,fin:ACT.fin_r,vtas:vb},
-      {n:'D · Óptimo',   cogs:0.45,       vta:0.05,      adm:28e6,     fin:ACT.fin_r,vtas:vb},
+      {n:'Óptimo Donnely', cogs:0.45,     vta:0.05,      adm:28e6,     fin:ACT.fin_r,vtas:vb, optimo:true},
       {n:'▶ Tu escenario',cogs:null,      vta:null,      adm:null,     fin:null,     vtas:null, custom:true},
     ];
   }
@@ -1222,43 +1286,59 @@ window._simInit=true;
     sdFin.textContent=(dFin>=0?'+':'')+dFin.toFixed(1).replace('.',',')+' pp';
     sdFin.className='sdelta '+(dFin<0?'delta-better':'delta-worse');
 
-    // ── PE hero ──
+    // Óptimo de referencia (para deltas y comparaciones)
+    const OPT=calcScen({cogs:0.45,vta:0.05,adm:28e6,fin:ACT.fin_r,vtas:VENTA_BASE});
+
+    // ── PE hero: muestra el PE REAL del período seleccionado ──
     const peEl=document.getElementById('r_pe');
     const peAEl=document.getElementById('r_pe_anual');
     const arrowEl=document.getElementById('r_pe_arrow');
-    if(!isFinite(pe_m)||pe_m<0){
+    const peReal=ACT.pe_m;
+    if(!isFinite(peReal)||peReal<0){
       peEl.textContent='—'; peEl.style.color='var(--red)';
-      peAEl.textContent='MC negativo'; arrowEl.textContent='';
+      peAEl.textContent='Costos > ventas (desfase)'; arrowEl.textContent='';
     } else {
-      peEl.textContent=clpM(pe_m); peEl.style.color='var(--teal)';
-      peAEl.textContent=clpFull(pe_a)+' anual';
-      const diff=ACT.pe_m-pe_m;
-      const pct=diff/ACT.pe_m*100;
-      if(Math.abs(pct)<0.5){arrowEl.textContent='Sin cambio';arrowEl.style.background='rgba(90,100,120,.3)';arrowEl.style.color='var(--sub)';}
-      else if(diff>0){arrowEl.textContent='▼ '+Math.abs(pct).toFixed(1)+'% vs base real';arrowEl.style.background='rgba(61,214,140,.15)';arrowEl.style.color='#3DD68C';}
-      else{arrowEl.textContent='▲ '+Math.abs(pct).toFixed(1)+'% vs base real';arrowEl.style.background='rgba(255,107,107,.15)';arrowEl.style.color='#FF6B6B';}
+      peEl.textContent=clpM(peReal); peEl.style.color='var(--teal)';
+      peAEl.textContent=clpFull(peReal*(PERIODO<0?12:1))+(PERIODO<0?' anual':' del mes');
+      // comparación: PE real del período vs PE óptimo
+      const diff=peReal-OPT.pe;
+      const pct=OPT.pe>0?diff/OPT.pe*100:0;
+      if(Math.abs(pct)<0.5){arrowEl.textContent='≈ igual al óptimo';arrowEl.style.background='rgba(90,100,120,.3)';arrowEl.style.color='var(--sub)';}
+      else if(diff>0){arrowEl.textContent='▲ '+Math.abs(pct).toFixed(0)+'% sobre el PE óptimo ($'+(OPT.pe/1e6).toFixed(1)+'M)';arrowEl.style.background='rgba(255,107,107,.15)';arrowEl.style.color='#FF6B6B';}
+      else{arrowEl.textContent='▼ '+Math.abs(pct).toFixed(0)+'% bajo el PE óptimo';arrowEl.style.background='rgba(61,214,140,.15)';arrowEl.style.color='#3DD68C';}
     }
 
-    // ── KPI results ──
-    document.getElementById('r_mc').textContent=p1(mc_r);
-    document.getElementById('r_mb').textContent=p1(mb_r);
-    document.getElementById('r_ebit').textContent=p1(ebit_r);
-    document.getElementById('r_mn').textContent=p1(mn_r);
-    document.getElementById('r_mseg').textContent=p1(mseg);
-    document.getElementById('r_ahorro').textContent=(ahorro>=0?'+':'')+clpM(ahorro)+(PERIODO<0?'/mes':'');
+    // ── KPI results: valores REALES del período seleccionado ──
+    const fmtP=x=>(!isFinite(x)||isNaN(x))?'—':p1(x);
+    document.getElementById('r_mc').textContent=fmtP(ACT.mc_r);
+    document.getElementById('r_mb').textContent=fmtP(ACT.mb_r);
+    document.getElementById('r_ebit').textContent=fmtP(ACT.ebit_r);
+    document.getElementById('r_mn').textContent=fmtP(ACT.mn_r);
+    document.getElementById('r_mseg').textContent=fmtP(ACT.mseg);
+    // ahorro potencial = cuánto bajaría el CF llegando al óptimo
+    const ahorroOpt=ACT.cf_m-(28e6+ACT.dep_m);
+    document.getElementById('r_ahorro').textContent=(ahorroOpt>=0?'+':'')+clpM(ahorroOpt)+(PERIODO<0?'/mes':'');
 
-    deltaEl(document.getElementById('rd_mc'),mc_r,ACT.mc_r);
-    deltaEl(document.getElementById('rd_mb'),mb_r,ACT.mb_r);
-    deltaEl(document.getElementById('rd_ebit'),ebit_r,ACT.ebit_r);
-    deltaEl(document.getElementById('rd_mn'),mn_r,ACT.mn_r);
-    deltaEl(document.getElementById('rd_mseg'),mseg,ACT.mseg);
+    // deltas: período real vs óptimo
+    deltaEl(document.getElementById('rd_mc'),ACT.mc_r,OPT.mc);
+    deltaEl(document.getElementById('rd_mb'),ACT.mb_r,OPT.mb);
+    deltaEl(document.getElementById('rd_ebit'),ACT.ebit_r,OPT.ebit);
+    deltaEl(document.getElementById('rd_mn'),ACT.mn_r,OPT.mn);
+    deltaEl(document.getElementById('rd_mseg'),ACT.mseg,OPT.mseg);
 
+    // ── cascada: resultado REAL del período seleccionado ──
+    drawWfEsc(VENTA_BASE,ACT.cogs_r,ACT.vta_r,ACT.adm_m,ACT.fin_r);
+    const wfp=document.getElementById('wf_esc_period');
+    if(wfp)wfp.textContent=periodoLabel(PERIODO);
+
+    // tabla + slider scenario
     const custom=calcScen({cogs:cogs_r,vta:vta_r,adm:adm_m,fin:fin_r,vtas});
     refreshTable(custom);
-    drawWfEsc(vtas,cogs_r,vta_r,adm_m,fin_r);
     drawPEByPeriod();
     const ss=document.getElementById('scen_sub');
-    if(ss)ss.textContent='· base: '+periodoLabel(PERIODO);
+    if(ss)ss.textContent='· '+periodoLabel(PERIODO)+' vs óptimo';
+    const rpp=document.getElementById('r_pe_periodo');
+    if(rpp)rpp.textContent=periodoLabel(PERIODO);
   }
 
   // ── wire up vtas slider display hack ──────────────────
@@ -1276,12 +1356,16 @@ window._simInit=true;
     document.getElementById(id).addEventListener('input',compute);
   });
 
-  document.getElementById('btn_reset').addEventListener('click',()=>{
-    document.getElementById('sl_cogs').value=(ACT.cogs_r*100).toFixed(1);
-    document.getElementById('sl_vta').value=(ACT.vta_r*100).toFixed(1);
-    document.getElementById('sl_adm').value=(ACT.adm_m/1e6).toFixed(1);
-    document.getElementById('sl_fin').value=(FIN_BASE*100).toFixed(1);
+  function slidersToOptimo(){
+    document.getElementById('sl_cogs').value=45;
+    document.getElementById('sl_vta').value=5;
+    document.getElementById('sl_adm').value=28;
+    document.getElementById('sl_fin').value=(ACT.fin_r*100).toFixed(1);
     document.getElementById('sl_vtas').value=Math.round(VENTA_BASE/1e6);
+    window._ventasTouched=false;
+  }
+  document.getElementById('btn_reset').addEventListener('click',()=>{
+    slidersToOptimo();
     compute();
   });
 
@@ -1304,8 +1388,7 @@ window._simInit=true;
   selPer.addEventListener('change',e=>{
     const pr=parseInt(e.target.value,10);
     computeBase(pr);
-    // Los sliders se mantienen como META. Solo ajustamos ventas base al período,
-    // salvo que el usuario ya haya movido el slider de ventas manualmente.
+    // ventas base sigue al período (si el usuario no la movió manualmente)
     if(!window._ventasTouched){
       document.getElementById('sl_vtas').value=Math.round(VENTA_BASE/1e6);
     }
@@ -1321,6 +1404,155 @@ window._simInit=true;
   compute();
 }
 
+
+// ══════════════════════════════════════════════════════════
+// PESTAÑA PROYECCIÓN — año completo, metas de ventas jul-dic
+// ══════════════════════════════════════════════════════════
+window._projInit=false;
+// Metas de ventas jul-dic (editables). Orden: Jul,Ago,Sep,Oct,Nov,Dic
+window.METAS_H2=[253832883,273317535,310444173,370587217,254705861,256078503];
+
+function initProj(){
+  if(window._projInit)return;
+  window._projInit=true;
+
+  const clp=v=>'$'+Math.round(v).toLocaleString('es-CL');
+  const clpM=v=>'$'+(v/1e6).toFixed(1)+'M';
+  const MESES_FULL=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+  // estructura ACTUAL (consolidado real)
+  function actualStruct(){
+    const V=sumReal(D.ventas),C=sumReal(D.cogs),A=sumReal(D.adm),Vt=sumReal(D.vta),
+          F=sumReal(D.fin),De=sumReal(D.dep),I=sumReal(D.imp);
+    const n=realIdx.length||1;
+    return {
+      cogs_r:C/V, vta_r:Vt/V, fin_r:F/V, imp_r:I/V,
+      adm_m:A/n, dep_m:De/n
+    };
+  }
+  // estructura ÓPTIMA
+  const OPT={cogs_r:0.45, vta_r:0.05, adm_m:28e6};
+
+  const AS=actualStruct();
+
+  // utilidad neta de un mes dado ventas + estructura
+  function netMonth(ventas, s, isOpt){
+    const cogs=ventas*(isOpt?OPT.cogs_r:s.cogs_r);
+    const vta =ventas*(isOpt?OPT.vta_r:s.vta_r);
+    const adm =isOpt?OPT.adm_m:s.adm_m;
+    const fin =ventas*s.fin_r;
+    const dep =s.dep_m;
+    const imp =ventas*s.imp_r;
+    return ventas-cogs-vta-adm-fin-dep-imp;
+  }
+
+  function recompute(){
+    const tbody=document.getElementById('pr_tbody'); tbody.innerHTML='';
+    const nReal=realIdx.length;
+    // ventas de cada mes: reales para 0..nReal-1, metas para el resto
+    const ventasAll=[], tipos=[];
+    for(let m=0;m<12;m++){
+      if(m<nReal){ ventasAll.push(D.ventas[m]); tipos.push('real'); }
+      else { const k=m-nReal; ventasAll.push(window.METAS_H2[k]||0); tipos.push('proy'); }
+    }
+    let sumV=0,sumUnAct=0,sumUnOpt=0,sumVH2=0;
+    const unActArr=[],unOptArr=[],accAct=[],accOpt=[];
+    let cAct=0,cOpt=0;
+    for(let m=0;m<12;m++){
+      const v=ventasAll[m];
+      // para meses reales usamos la utilidad neta REAL; para proy usamos estructura
+      let unAct, unOpt;
+      if(tipos[m]==='real'){
+        unAct = D.ventas[m]-D.cogs[m]-D.adm[m]-D.vta[m]-D.fin[m]+D.dif[m]-D.dep[m]-D.imp[m];
+        unOpt = netMonth(v,AS,true);
+      } else {
+        unAct = netMonth(v,AS,false);
+        unOpt = netMonth(v,AS,true);
+        sumVH2+=v;
+      }
+      unActArr.push(unAct); unOptArr.push(unOpt);
+      cAct+=unAct; cOpt+=unOpt; accAct.push(cAct); accOpt.push(cOpt);
+      sumV+=v; sumUnAct+=unAct; sumUnOpt+=unOpt;
+
+      const tr=document.createElement('tr');
+      if(tipos[m]==='proy')tr.style.background='rgba(246,196,83,.05)';
+      const dcolor = (unOpt-unAct)>=0?'var(--green)':'var(--red)';
+      const editable = tipos[m]==='proy'
+        ? `<span contenteditable="true" data-k="${m-nReal}" class="pr_edit" style="border-bottom:1px dashed var(--gold);cursor:text;outline:none">${clp(v)}</span>`
+        : clp(v);
+      tr.innerHTML=
+        `<td>${MESES_FULL[m]}</td>`+
+        `<td style="color:var(--teal)">${editable}</td>`+
+        `<td><span style="font-size:9px;padding:1px 6px;border-radius:3px;background:${tipos[m]==='real'?'rgba(25,199,180,.15)':'rgba(246,196,83,.15)'};color:${tipos[m]==='real'?'var(--teal)':'var(--gold)'}">${tipos[m]==='real'?'Real':'Meta'}</span></td>`+
+        `<td style="color:var(--sub)">${clp(unAct)}</td>`+
+        `<td style="color:var(--gold)">${clp(unOpt)}</td>`+
+        `<td style="color:${dcolor}">${(unOpt-unAct>=0?'+':'')}${clpM(unOpt-unAct)}</td>`;
+      tbody.appendChild(tr);
+    }
+    // total row
+    const trT=document.createElement('tr'); trT.className='total-row';
+    trT.innerHTML=`<td>AÑO COMPLETO</td><td style="color:var(--teal)">${clp(sumV)}</td><td>—</td>`+
+      `<td>${clp(sumUnAct)}</td><td style="color:var(--gold)">${clp(sumUnOpt)}</td>`+
+      `<td style="color:var(--green)">+${clpM(sumUnOpt-sumUnAct)}</td>`;
+    tbody.appendChild(trT);
+
+    // KPI cards
+    document.getElementById('pr_ventas').textContent=clp(sumV);
+    document.getElementById('pr_ventas_sub').textContent=nReal+' reales + '+(12-nReal)+' proyectados';
+    document.getElementById('pr_un_act').textContent=clp(sumUnAct);
+    document.getElementById('pr_un_opt').textContent=clp(sumUnOpt);
+    document.getElementById('pr_gain').textContent='+'+clp(sumUnOpt-sumUnAct);
+    document.getElementById('pr_meta_h2').textContent=(sumVH2/1e6).toFixed(0);
+    document.getElementById('pr_cogs_act').textContent=(AS.cogs_r*100).toFixed(0)+'%';
+    document.getElementById('pr_adm_act').textContent=(AS.adm_m/1e6).toFixed(0);
+
+    drawCharts(ventasAll,tipos,accAct,accOpt,nReal);
+  }
+
+  let chV=null,chU=null;
+  function drawCharts(ventasAll,tipos,accAct,accOpt,nReal){
+    if(typeof Chart==='undefined')return;
+    const grid={color:'#2E3447'};
+    const labels=MESES_FULL.map(m=>m.slice(0,3));
+    const moneyFmt=v=>'$'+(v/1e6).toFixed(0)+'M';
+    if(chV)chV.destroy();
+    chV=new Chart(document.getElementById('pr_chVentas'),{
+      type:'bar',
+      data:{labels,datasets:[{label:'Ventas',data:ventasAll,
+        backgroundColor:ventasAll.map((_,i)=>tipos[i]==='real'?'#19C7B4':'#F6C453'),borderRadius:4}]},
+      options:{maintainAspectRatio:false,plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:c=>(tipos[c.dataIndex]==='real'?'Real: ':'Meta: ')+clp(c.raw)}}},
+        scales:{y:{grid,ticks:{callback:moneyFmt}},x:{grid:{display:false}}}}
+    });
+    if(chU)chU.destroy();
+    chU=new Chart(document.getElementById('pr_chUtil'),{
+      type:'line',
+      data:{labels,datasets:[
+        {label:'Actual acum.',data:accAct,borderColor:'#8C95AC',backgroundColor:'#8C95AC',tension:.3,pointRadius:2,borderWidth:2},
+        {label:'Óptima acum.',data:accOpt,borderColor:'#F6C453',backgroundColor:'#F6C453',tension:.3,pointRadius:2,borderWidth:2},
+      ]},
+      options:{maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,padding:14}},
+        tooltip:{callbacks:{label:c=>c.dataset.label+': '+clp(c.raw)}}},
+        scales:{y:{grid,ticks:{callback:moneyFmt}},x:{grid:{display:false}}}}
+    });
+  }
+
+  // edición de metas
+  document.getElementById('pr_tbody').addEventListener('blur',e=>{
+    if(!e.target.classList||!e.target.classList.contains('pr_edit'))return;
+    const k=+e.target.dataset.k;
+    const val=parseNum(e.target.textContent);
+    if(!isNaN(val)&&val>=0){ window.METAS_H2[k]=val; recompute(); }
+  },true);
+  document.getElementById('pr_tbody').addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&e.target.classList&&e.target.classList.contains('pr_edit')){
+      e.preventDefault(); e.target.blur();
+    }
+  });
+
+  recompute();
+}
+
 // ===== Tabs =====
 (function(){
   const btns=document.querySelectorAll('.tabbtn');
@@ -1332,6 +1564,7 @@ window._simInit=true;
     const v=document.getElementById('tab-'+b.dataset.tab);
     if(v)v.classList.add('active');
     if(b.dataset.tab==='escenarios'&&typeof initSim==='function')initSim();
+    if(b.dataset.tab==='proyeccion'&&typeof initProj==='function')initProj();
     // resize charts in the now-visible tab (Chart.js mis-sizes hidden canvases)
     if(typeof Chart!=='undefined'){
       setTimeout(()=>{
