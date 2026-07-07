@@ -376,10 +376,14 @@ input[type=range].red::-webkit-slider-thumb{background:#FF6B6B;box-shadow:0 0 0 
 <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px">
   <div>
     <div style="font-size:16px;font-weight:700">Simulador de Escenarios · Estructura de Costos Objetivo</div>
-    <div style="font-size:12px;color:var(--sub);margin-top:3px">Mueve los sliders y ve el impacto en PE, márgenes y utilidad en tiempo real</div>
+    <div style="font-size:12px;color:var(--sub);margin-top:3px">Elige un período base (consolidado o un mes), y mueve los sliders como meta de optimización</div>
   </div>
-  <div style="font-size:11px;color:var(--sub);background:var(--panel2);padding:7px 14px;border-radius:7px;border:1px solid var(--line)">
-    Base de cálculo: <b style="color:var(--txt)">Ventas promedio H1</b> · $<span id="s_venta_prom">—</span>M/mes
+  <div style="display:flex;align-items:center;gap:12px">
+    <label for="esc_periodo" style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--gold);text-transform:uppercase">Período base ▸</label>
+    <select id="esc_periodo" style="background:var(--gold);color:#1a1d27;border:none;border-radius:7px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;min-width:150px"></select>
+    <div style="font-size:11px;color:var(--sub);background:var(--panel2);padding:7px 14px;border-radius:7px;border:1px solid var(--line)">
+      Ventas base · $<span id="s_venta_prom">—</span>M
+    </div>
   </div>
 </div>
 
@@ -510,9 +514,16 @@ input[type=range].red::-webkit-slider-thumb{background:#FF6B6B;box-shadow:0 0 0 
       <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:9.5px;color:var(--sub)" id="wf_esc_labels"></div>
     </div>
 
+    <!-- PE real por período -->
+    <div class="esc-panel" style="margin-bottom:14px">
+      <h2>Punto de equilibrio real por período <span style="color:var(--sub);text-transform:none;font-size:10px;letter-spacing:0;font-weight:400">— clic en una barra para analizarla</span></h2>
+      <div id="pe_by_month" style="display:flex;gap:6px;height:160px;align-items:flex-end;padding:0 2px"></div>
+      <div id="pe_by_month_lbls" style="display:flex;gap:6px;margin-top:6px"></div>
+    </div>
+
     <!-- Comparison table -->
     <div class="esc-panel">
-      <h2>Comparación de escenarios</h2>
+      <h2>Comparación de escenarios <span id="scen_sub" style="color:var(--sub);text-transform:none;font-size:10px;letter-spacing:0;font-weight:400"></span></h2>
       <table class="scenario-compare" id="scen_tbl">
         <thead><tr>
           <th>Escenario</th><th>PE mensual</th><th>MC%</th><th>EBIT%</th><th>M.Seg.</th>
@@ -949,38 +960,56 @@ window._simInit=false;
 function initSim(){
 if(window._simInit)return;
 window._simInit=true;
-  // ── constants ──────────────────────────────────────────
-  const TV   = sumReal(D.ventas);
-  const TC   = sumReal(D.cogs);
-  const TA   = sumReal(D.adm);
-  const TVt  = sumReal(D.vta);
-  const TF   = sumReal(D.fin);
-  const TDep = sumReal(D.dep);
-  const TI   = sumReal(D.imp);
-  const N    = realIdx.length || 1;
+  // ── período base: -1 = Consolidado, o índice de mes real ──
+  // Calcula los valores base (ACT) y ventas base según el período elegido.
+  // Consolidado usa el promedio mensual; un mes usa sus cifras reales de ese mes.
+  let PERIODO = -1;              // -1 = consolidado
+  let VENTA_BASE, IMP_RATE, FIN_BASE, ACT;
 
-  const VENTA_PROM = TV / N;          // avg monthly real sales
-  const IMP_RATE   = TI / TV;         // PPM rate ~4.7%
-  const FIN_BASE   = TF / TV;         // fin rate actual
+  function computeBase(periodo){
+    PERIODO = periodo;
+    let ventas,cogs,adm,vta,fin,dep,imp,ventaBase,nMonths;
+    if(periodo<0){
+      // consolidado: sumas reales, base = promedio mensual
+      ventas=sumReal(D.ventas); cogs=sumReal(D.cogs); adm=sumReal(D.adm);
+      vta=sumReal(D.vta); fin=sumReal(D.fin); dep=sumReal(D.dep); imp=sumReal(D.imp);
+      nMonths=realIdx.length||1;
+      ventaBase=ventas/nMonths;        // ventas promedio mensual
+      // costos fijos mensuales promedio
+      var admM=adm/nMonths, finM=fin/nMonths, depM=dep/nMonths;
+    }else{
+      // un mes específico: cifras reales de ese mes
+      const i=periodo;
+      ventas=D.ventas[i]; cogs=D.cogs[i]; adm=D.adm[i]; vta=D.vta[i];
+      fin=D.fin[i]; dep=D.dep[i]; imp=D.imp[i];
+      nMonths=1;
+      ventaBase=ventas;
+      var admM=adm, finM=fin, depM=dep;
+    }
+    VENTA_BASE = ventaBase;
+    IMP_RATE   = ventas>0 ? imp/ventas : 0;
+    FIN_BASE   = ventas>0 ? fin/ventas : 0;
+    const cogs_r = ventas>0 ? cogs/ventas : 0;
+    const vta_r  = ventas>0 ? vta/ventas  : 0;
+    const cf_m   = admM + finM + depM;
+    const mc_r   = 1 - (cogs_r + vta_r + FIN_BASE);
+    ACT = {
+      cogs_r, vta_r, adm_m:admM, fin_r:FIN_BASE,
+      cv_r:cogs_r+vta_r+FIN_BASE, mc_r,
+      mb_r:(ventas>0?(ventas-cogs)/ventas:0), cf_m,
+    };
+    ACT.pe_m   = mc_r>0 ? cf_m/mc_r : Infinity;
+    ACT.ebit_r = ventaBase>0 ? (ventaBase*mc_r - cf_m)/ventaBase : 0;
+    ACT.mn_r   = ACT.ebit_r - IMP_RATE;
+    ACT.mseg   = ventaBase>0 ? (ventaBase - ACT.pe_m)/ventaBase : 0;
+    // depreciación mensual para calcScen/waterfall
+    ACT.dep_m = depM;
+    document.getElementById('s_venta_prom').textContent=(VENTA_BASE/1e6).toFixed(1);
+  }
+  computeBase(-1);   // arranca en consolidado
 
-  // actual baseline for deltas
-  const ACT = {
-    cogs_r : TC/TV,
-    vta_r  : TVt/TV,
-    adm_m  : TA/N,
-    fin_r  : FIN_BASE,
-    cv_r   : TC/TV + TVt/TV,
-    mc_r   : 1 - (TC/TV + TVt/TV),
-    mb_r   : (TV-TC)/TV,
-    cf_m   : TA/N + TF/N + TDep/N,
-  };
-  ACT.pe_m = ACT.cf_m / ACT.mc_r;
-  ACT.ebit_r = (VENTA_PROM*ACT.mc_r - ACT.cf_m)/VENTA_PROM;
-  ACT.mn_r   = ACT.ebit_r - IMP_RATE;
-  ACT.mseg   = (VENTA_PROM - ACT.pe_m)/VENTA_PROM;
-
-  // update venta prom display
-  document.getElementById('s_venta_prom').textContent=(VENTA_PROM/1e6).toFixed(1);
+  // ── helpers de nombre de período ──
+  function periodoLabel(pr){ return pr<0 ? 'Consolidado' : MESES[pr]; }
 
   // ── helpers ────────────────────────────────────────────
   const p1=(v)=>(v*100).toFixed(1).replace('.',',')+'%';
@@ -991,32 +1020,35 @@ window._simInit=true;
     if(Math.abs(d)<0.05){el.textContent='Sin cambio';el.className='delta delta-same';return;}
     const better=inverse? d<0 : d>0;
     const sign=d>0?'+':'';
-    el.textContent=sign+d.toFixed(1).replace('.',',')+' pp vs actual';
+    el.textContent=sign+d.toFixed(1).replace('.',',')+' pp vs base';
     el.className='delta '+(better?'delta-better':'delta-worse');
   }
   function deltaElAbs(el,cur,base){
     const d=cur-base;
     if(Math.abs(d)<1000){el.textContent='Sin cambio';el.className='sdelta delta-same';return;}
     const sign=d>0?'+':'−';
-    el.textContent=sign+'$'+(Math.abs(d)/1e6).toFixed(1)+'M vs actual';
+    el.textContent=sign+'$'+(Math.abs(d)/1e6).toFixed(1)+'M vs base';
     el.className='sdelta '+(d<0?'delta-better':'delta-worse');
   }
 
-  // ── predefined comparison scenarios ───────────────────
-  const SCENARIOS=[
-    {n:'Actual H1',    cogs:ACT.cogs_r,vta:ACT.vta_r,adm:ACT.adm_m,fin:FIN_BASE,vtas:VENTA_PROM},
-    {n:'A · Solo ADM', cogs:ACT.cogs_r,vta:ACT.vta_r,adm:28e6,     fin:FIN_BASE,vtas:VENTA_PROM},
-    {n:'B · Solo COGS',cogs:0.45,      vta:ACT.vta_r,adm:ACT.adm_m,fin:FIN_BASE,vtas:VENTA_PROM},
-    {n:'C · Comercial',cogs:ACT.cogs_r,vta:0.07,     adm:ACT.adm_m,fin:FIN_BASE,vtas:VENTA_PROM},
-    {n:'D · Óptimo',   cogs:0.45,      vta:0.05,     adm:28e6,     fin:FIN_BASE,vtas:VENTA_PROM},
-    {n:'▶ Tu escenario',cogs:null,     vta:null,     adm:null,     fin:null,    vtas:null, custom:true},
-  ];
+  // ── escenarios de comparación (dependen del período base) ──
+  function buildScenarios(){
+    const vb=VENTA_BASE, dep=ACT.dep_m;
+    return [
+      {n:periodoLabel(PERIODO)+' (real)', cogs:ACT.cogs_r,vta:ACT.vta_r,adm:ACT.adm_m,fin:ACT.fin_r,vtas:vb, real:true},
+      {n:'A · Solo ADM', cogs:ACT.cogs_r,vta:ACT.vta_r,adm:28e6,      fin:ACT.fin_r,vtas:vb},
+      {n:'B · Solo COGS',cogs:0.45,       vta:ACT.vta_r,adm:ACT.adm_m,fin:ACT.fin_r,vtas:vb},
+      {n:'C · Comercial',cogs:ACT.cogs_r,vta:0.07,      adm:ACT.adm_m,fin:ACT.fin_r,vtas:vb},
+      {n:'D · Óptimo',   cogs:0.45,       vta:0.05,      adm:28e6,     fin:ACT.fin_r,vtas:vb},
+      {n:'▶ Tu escenario',cogs:null,      vta:null,      adm:null,     fin:null,     vtas:null, custom:true},
+    ];
+  }
   function calcScen(s){
     const cv=s.cogs+s.vta+s.fin;
     const mc=1-cv;
-    const cf=s.adm+TDep/N;
+    const cf=s.adm+ACT.dep_m;
     const pe=mc>0?cf/mc:Infinity;
-    const v=s.vtas||VENTA_PROM;
+    const v=s.vtas||VENTA_BASE;
     const ebit=(v*mc-cf)/v;
     const mn=ebit-IMP_RATE;
     const mseg=(v-pe)/v;
@@ -1028,7 +1060,7 @@ window._simInit=true;
   function drawWfEsc(vtas,cogs_r,vta_r,adm_m,fin_r){
     const wrap=document.getElementById('wf_esc_wrap');
     const lbls=document.getElementById('wf_esc_labels');
-    const dep_m=TDep/N;
+    const dep_m=ACT.dep_m;
     const imp_m=vtas*IMP_RATE;
     const steps=[
       {l:'Ventas',  v:vtas,          color:'#19C7B4'},
@@ -1063,18 +1095,85 @@ window._simInit=true;
   function refreshTable(custom){
     const tbody=document.getElementById('scen_tbody');
     tbody.innerHTML='';
-    SCENARIOS.forEach((s,i)=>{
+    buildScenarios().forEach((s)=>{
       const data=s.custom?custom:calcScen(s);
       const tr=document.createElement('tr');
       if(s.custom)tr.className='highlight';
+      if(s.real)tr.style.background='rgba(140,149,172,.06)';
+      const fmtP=x=>(!isFinite(x)||isNaN(x))?'—':p1(x);
       const pe_s=data.pe<0||!isFinite(data.pe)?'—':clpM(data.pe);
+      const nm=s.real?('<b>'+s.n+'</b>'):s.n;
       tr.innerHTML=
-        `<td>${s.n}</td>`+
+        `<td>${nm}</td>`+
         `<td style="color:${s.custom?'var(--teal)':'var(--txt)'}">${pe_s}</td>`+
-        `<td>${p1(data.mc)}</td>`+
-        `<td style="color:${data.ebit>=0?'var(--green)':'var(--red)'}">${p1(data.ebit)}</td>`+
-        `<td>${p1(data.mseg)}</td>`;
+        `<td>${fmtP(data.mc)}</td>`+
+        `<td style="color:${data.ebit>=0?'var(--green)':'var(--red)'}">${fmtP(data.ebit)}</td>`+
+        `<td>${fmtP(data.mseg)}</td>`;
       tbody.appendChild(tr);
+    });
+  }
+
+  // ── PE real por período (mini-barras) ──────────────────
+  function realPE(periodo){
+    let ventas,cogs,adm,vta,fin,dep,n;
+    if(periodo<0){
+      ventas=sumReal(D.ventas);cogs=sumReal(D.cogs);adm=sumReal(D.adm);
+      vta=sumReal(D.vta);fin=sumReal(D.fin);dep=sumReal(D.dep);
+      n=realIdx.length||1;
+      return peFrom(ventas/n, cogs/ventas, vta/ventas, fin/ventas, adm/n+fin/n+dep/n, ventas/n);
+    }else{
+      const i=periodo;ventas=D.ventas[i];
+      return peFrom(ventas, D.cogs[i]/ventas, D.vta[i]/ventas, D.fin[i]/ventas,
+                    D.adm[i]+D.fin[i]+D.dep[i], ventas);
+    }
+  }
+  function peFrom(vb,cogs_r,vta_r,fin_r,cf,ventaBase){
+    const mc=1-(cogs_r+vta_r+fin_r);
+    const pe=mc>0?cf/mc:Infinity;
+    return {pe,mc,ventaBase,mseg:ventaBase>0?(ventaBase-pe)/ventaBase:-Infinity};
+  }
+  function drawPEByPeriod(){
+    const wrap=document.getElementById('pe_by_month');
+    const lbls=document.getElementById('pe_by_month_lbls');
+    if(!wrap)return;
+    const items=[{p:-1,name:'Consol.'}].concat(realIdx.map(i=>({p:i,name:MESES[i].slice(0,3)})));
+    // compute PE + ventas for each; scale bars to max finite value
+    const data=items.map(it=>{ const r=realPE(it.p); return {...it, pe:r.pe, vb:r.ventaBase, mseg:r.mseg}; });
+    const finitePEs=data.filter(d=>isFinite(d.pe)&&d.pe>0).map(d=>d.pe);
+    const maxRef=Math.max(...finitePEs, ...data.map(d=>d.vb));
+    wrap.innerHTML=''; lbls.innerHTML='';
+    data.forEach(d=>{
+      const col=document.createElement('div');
+      col.style.cssText='flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:140px;cursor:pointer;gap:2px';
+      col.title='Clic para analizar '+ (d.p<0?'el consolidado':MESES[d.p]);
+      // ventas bar (faint) behind + PE bar
+      const active = d.p===PERIODO;
+      const peH = isFinite(d.pe)&&d.pe>0 ? Math.max(4,Math.round(d.pe/maxRef*120)) : 120;
+      const vbH = d.vb>0 ? Math.max(4,Math.round(d.vb/maxRef*120)) : 4;
+      // ventas de referencia (línea sutil)
+      const vbar=document.createElement('div');
+      vbar.style.cssText=`height:${vbH}px;background:rgba(25,199,180,.18);border-radius:3px 3px 0 0;position:relative`;
+      // PE bar
+      const bar=document.createElement('div');
+      const peExceedsVentas = isFinite(d.pe)&&d.pe>d.vb;
+      const barColor = active ? '#F6C453' : (peExceedsVentas?'#FF6B6B':'#19C7B4');
+      bar.style.cssText=`height:${peH}px;background:${barColor};border-radius:3px 3px 0 0;
+        display:flex;align-items:flex-start;justify-content:center;transition:all .3s;
+        ${active?'box-shadow:0 0 0 2px var(--gold)':''}`;
+      const lv=document.createElement('div');
+      lv.style.cssText='font-size:8px;color:#0f1420;font-weight:700;padding:2px 0';
+      lv.textContent=isFinite(d.pe)&&d.pe>0?('$'+(d.pe/1e6).toFixed(0)+'M'):'∞';
+      if(peH>18)bar.appendChild(lv);
+      col.appendChild(vbar); col.appendChild(bar);
+      col.addEventListener('click',()=>{
+        document.getElementById('esc_periodo').value=String(d.p);
+        document.getElementById('esc_periodo').dispatchEvent(new Event('change'));
+      });
+      wrap.appendChild(col);
+      const lt=document.createElement('div');
+      lt.style.cssText=`flex:1;font-size:9px;text-align:center;font-weight:${active?'700':'400'};color:${active?'var(--gold)':'var(--sub)'}`;
+      lt.textContent=d.name;
+      lbls.appendChild(lt);
     });
   }
 
@@ -1085,7 +1184,7 @@ window._simInit=true;
     const adm_m  = +document.getElementById('sl_adm').value*1e6;
     const fin_r  = +document.getElementById('sl_fin').value/100;
     const vtas   = +document.getElementById('sl_vtas').value*1e6;
-    const dep_m  = TDep/N;
+    const dep_m  = ACT.dep_m;
 
     const cv_r = cogs_r + vta_r + fin_r;
     const mc_r = 1 - cv_r;
@@ -1096,7 +1195,7 @@ window._simInit=true;
     const ebit_r= (vtas*mc_r - cf_m)/vtas;
     const mn_r  = ebit_r - IMP_RATE;
     const mseg  = (vtas-pe_m)/vtas;
-    const ahorro= ACT.cf_m - cf_m;  // positive = we saved vs actual
+    const ahorro= ACT.cf_m - cf_m;  // positive = ahorro vs base
 
     // ── slider labels ──
     document.getElementById('sv_cogs').textContent=p1(cogs_r);
@@ -1136,8 +1235,8 @@ window._simInit=true;
       const diff=ACT.pe_m-pe_m;
       const pct=diff/ACT.pe_m*100;
       if(Math.abs(pct)<0.5){arrowEl.textContent='Sin cambio';arrowEl.style.background='rgba(90,100,120,.3)';arrowEl.style.color='var(--sub)';}
-      else if(diff>0){arrowEl.textContent='▼ '+Math.abs(pct).toFixed(1)+'% menor que actual';arrowEl.style.background='rgba(61,214,140,.15)';arrowEl.style.color='#3DD68C';}
-      else{arrowEl.textContent='▲ '+Math.abs(pct).toFixed(1)+'% mayor que actual';arrowEl.style.background='rgba(255,107,107,.15)';arrowEl.style.color='#FF6B6B';}
+      else if(diff>0){arrowEl.textContent='▼ '+Math.abs(pct).toFixed(1)+'% vs base real';arrowEl.style.background='rgba(61,214,140,.15)';arrowEl.style.color='#3DD68C';}
+      else{arrowEl.textContent='▲ '+Math.abs(pct).toFixed(1)+'% vs base real';arrowEl.style.background='rgba(255,107,107,.15)';arrowEl.style.color='#FF6B6B';}
     }
 
     // ── KPI results ──
@@ -1146,7 +1245,7 @@ window._simInit=true;
     document.getElementById('r_ebit').textContent=p1(ebit_r);
     document.getElementById('r_mn').textContent=p1(mn_r);
     document.getElementById('r_mseg').textContent=p1(mseg);
-    document.getElementById('r_ahorro').textContent=(ahorro>=0?'+':'')+clpM(ahorro)+'/mes';
+    document.getElementById('r_ahorro').textContent=(ahorro>=0?'+':'')+clpM(ahorro)+(PERIODO<0?'/mes':'');
 
     deltaEl(document.getElementById('rd_mc'),mc_r,ACT.mc_r);
     deltaEl(document.getElementById('rd_mb'),mb_r,ACT.mb_r);
@@ -1157,6 +1256,9 @@ window._simInit=true;
     const custom=calcScen({cogs:cogs_r,vta:vta_r,adm:adm_m,fin:fin_r,vtas});
     refreshTable(custom);
     drawWfEsc(vtas,cogs_r,vta_r,adm_m,fin_r);
+    drawPEByPeriod();
+    const ss=document.getElementById('scen_sub');
+    if(ss)ss.textContent='· base: '+periodoLabel(PERIODO);
   }
 
   // ── wire up vtas slider display hack ──────────────────
@@ -1179,11 +1281,43 @@ window._simInit=true;
     document.getElementById('sl_vta').value=(ACT.vta_r*100).toFixed(1);
     document.getElementById('sl_adm').value=(ACT.adm_m/1e6).toFixed(1);
     document.getElementById('sl_fin').value=(FIN_BASE*100).toFixed(1);
-    document.getElementById('sl_vtas').value=Math.round(VENTA_PROM/1e6);
+    document.getElementById('sl_vtas').value=Math.round(VENTA_BASE/1e6);
     compute();
   });
 
-  // run initial compute with optimal preset
+  // ── set sliders to reflect the base real values of current period ──
+  function slidersToBase(){
+    document.getElementById('sl_cogs').value=(ACT.cogs_r*100).toFixed(1);
+    document.getElementById('sl_vta').value=(ACT.vta_r*100).toFixed(1);
+    document.getElementById('sl_adm').value=(ACT.adm_m/1e6).toFixed(1);
+    document.getElementById('sl_fin').value=(ACT.fin_r*100).toFixed(1);
+    document.getElementById('sl_vtas').value=Math.round(VENTA_BASE/1e6);
+  }
+
+  // ── populate período selector ──
+  const selPer=document.getElementById('esc_periodo');
+  selPer.innerHTML='';
+  const optC=document.createElement('option'); optC.value='-1'; optC.textContent='Consolidado ('+ (realIdx.length||0) +' meses)'; selPer.appendChild(optC);
+  realIdx.forEach(i=>{ const o=document.createElement('option'); o.value=String(i); o.textContent=MESES[i]; selPer.appendChild(o); });
+  selPer.value='-1';
+
+  selPer.addEventListener('change',e=>{
+    const pr=parseInt(e.target.value,10);
+    computeBase(pr);
+    // Los sliders se mantienen como META. Solo ajustamos ventas base al período,
+    // salvo que el usuario ya haya movido el slider de ventas manualmente.
+    if(!window._ventasTouched){
+      document.getElementById('sl_vtas').value=Math.round(VENTA_BASE/1e6);
+    }
+    compute();
+  });
+  // marca si el usuario toca el slider de ventas (para no pisarlo al cambiar período)
+  document.getElementById('sl_vtas').addEventListener('input',()=>{window._ventasTouched=true;});
+
+  // update reset to respect current period
+  // (btn_reset ya usa ACT/VENTA_BASE que ahora dependen del período)
+
+  // run initial compute with optimal preset (consolidado)
   compute();
 }
 
