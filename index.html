@@ -611,9 +611,9 @@ input[type=range].red::-webkit-slider-thumb{background:#FF6B6B;box-shadow:0 0 0 
 <div class="foot">Datos: EERR Donnely Ltda. 2026 · Solo meses cerrados (reales) · El tablero se extiende automáticamente al agregar meses al origen de datos</div>
 
 <script>
-// Datos de RESPALDO (H1 2026) — se usan solo si falla la lectura del Google Sheet.
-let D = {"ventas": [101743519, 138837706, 86392002, 343784042, 477588476, 125557571], "cogs": [96917341, 46688641, 123653108, 213240787, 149461289, 39041442], "adm": [37715056, 31544950, 37976921, 35570170, 42621396, 20596213], "vta": [8616512, 3802215, 4885877, 6481501, 8492992, 7680925], "fin": [196946, 250499, 207857, 272065, 197014, 0], "dif": [-54884, 210397, 126142, 682384, 1192557, 505608], "dep": [547302, 18980, 56105, 7424, 27230, 2113], "imp": [0, 7092852, 0, 11111810, 34747639, 7342811]};
-let MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio'];
+// Datos de RESPALDO (Ene-Jul 2026) — se usan solo si falla la lectura del Google Sheet.
+let D = {"ventas": [101743519, 138837706, 86392002, 343784042, 477588476, 360244468, 172613397], "cogs": [49960401, 32866023, 90704768, 172049817, 76850763, 56852864, 64808810], "adm": [37058242, 31314950, 37575057, 35406205, 40203683, 33601614, 30409241], "vta": [8616512, 3802215, 4785877, 6481501, 8492992, 14324132, 4121251], "fin": [196946, 250499, 207857, 272065, 197014, 384408, 278521], "dif": [-54884, 210397, 126142, 682384, 1192557, 505608, 0], "dep": [547302, 18980, 56105, 7424, 27230, 2113, 0], "imp": [663654, 8849429, 0, 16281177, 44126169, 31948118, 9124447]};
+let MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio'];
 // Todos los meses presentes son reales. El dashboard se extiende solo al agregar meses al CSV.
 function boot(){
 const REALES=MESES.map(()=>true);
