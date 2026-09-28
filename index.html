@@ -210,6 +210,22 @@ input[type=range].red::-webkit-slider-thumb{background:#FF6B6B;box-shadow:0 0 0 
 #data_status.ok{color:var(--green)}
 #data_status.err{color:var(--amber)}
 
+/* ===== KRI ===== */
+.kri-cards{grid-template-columns:repeat(3,1fr);margin-bottom:14px}
+.kri-summary{font-size:12.5px;color:var(--sub);margin:-4px 0 14px}
+.kri-summary b{margin-right:14px}
+.kri-badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;margin-left:6px}
+.kri-matrix td{white-space:nowrap}
+.kri-matrix td.kri-g{background:rgba(61,214,140,.14);color:#3DD68C}
+.kri-matrix td.kri-y{background:rgba(246,196,83,.14);color:#F6C453}
+.kri-matrix td.kri-r{background:rgba(255,107,107,.16);color:#FF6B6B}
+.kri-2col{display:grid;gap:14px;grid-template-columns:1fr 1fr;margin-bottom:14px}
+.kri-3col{display:grid;gap:14px;grid-template-columns:2fr 1fr 1fr;margin-bottom:14px}
+.gauge-wrap{position:relative;height:150px}
+.gauge-val{text-align:center;font-size:24px;font-weight:700;margin-top:-40px;position:relative}
+.gauge-sub{text-align:center;font-size:11px;color:var(--sub);margin-top:6px}
+@media(max-width:980px){.kri-cards,.kri-2col,.kri-3col{grid-template-columns:1fr}}
+
 </style>
 </head>
 <body>
@@ -231,6 +247,7 @@ input[type=range].red::-webkit-slider-thumb{background:#FF6B6B;box-shadow:0 0 0 
   <button class="tabbtn" data-tab="escenarios">🎯 Escenarios</button>
   <button class="tabbtn" data-tab="proyeccion">📈 Proyección</button>
   <button class="tabbtn" data-tab="kpi">🎯 KPI</button>
+  <button class="tabbtn" data-tab="kri">🚨 KRI</button>
 </div>
 
 <!-- ===== TAB CONSOLIDADO ===== -->
@@ -653,6 +670,37 @@ input[type=range].red::-webkit-slider-thumb{background:#FF6B6B;box-shadow:0 0 0 
 </div>
 
 </div><!-- /tab-kpi -->
+
+<!-- ===== TAB KRI ===== -->
+<div class="tabview" id="tab-kri">
+
+<div class="section-title">Key Risk Indicators · último mes cerrado <span id="kri_range" class="range-tag"></span></div>
+<div class="kri-summary" id="kri_count"></div>
+<div class="grid kri-cards" id="kri_cards"></div>
+
+<div class="section-title">Semáforo mes a mes</div>
+<div class="card" style="margin-bottom:14px">
+  <div class="tbl-wrap"><table class="scenario-compare kri-matrix" id="kri_matrix"></table></div>
+</div>
+
+<div class="section-title">Detalle</div>
+<div class="kri-2col">
+  <div class="card"><h3>1 · Ventas vs. promedio de los 3 meses previos</h3><div class="cwrap"><canvas id="chKri1"></canvas></div></div>
+  <div class="card"><h3>3 · COGS % mensual vs. acumulado</h3><div class="cwrap"><canvas id="chKri3"></canvas></div></div>
+</div>
+<div class="kri-3col">
+  <div class="card"><h3>6 · Gasto de administración vs. meta</h3><div class="cwrap"><canvas id="chKri6"></canvas></div></div>
+  <div class="card"><h3>4 · Cobertura de costos fijos</h3><div class="gauge-wrap"><canvas id="chKri4"></canvas></div><div class="gauge-val" id="g4_val">—</div><div class="gauge-sub">Escala 0 – 5x · Verde ≥ 1,5x</div></div>
+  <div class="card"><h3>5 · Margen de seguridad</h3><div class="gauge-wrap"><canvas id="chKri5"></canvas></div><div class="gauge-val" id="g5_val">—</div><div class="gauge-sub">Escala 0 – 100% · Verde ≥ 30%</div></div>
+</div>
+
+<div class="note" style="margin-bottom:20px">
+  <b>Cómo leer esta pestaña.</b> Cada KRI se calcula con las partidas del EERR del mes; las tarjetas muestran el último mes cerrado y la matriz la historia completa.
+  En los KRI 3 y 4 se muestra además el valor del promedio de 3 meses, porque el desfase entre el registro de ventas y de compras hace que un mes aislado exagere el riesgo.
+  <b>Ojo:</b> hoy la fila "Gastos financieros" del EERR repite exactamente "Comisiones por medios de pago"; revisar esa fórmula en la planilla.
+</div>
+
+</div><!-- /tab-kri -->
 
 
 
@@ -1655,6 +1703,122 @@ function initProj(){
       plugins:{legend:{position:'bottom',labels:{color:'#EAEEF6',boxWidth:12,font:{size:11}}},
         tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.raw.toFixed(1).replace('.',',')+'%'}}}}
   });
+})();
+
+// ===== KRI (Key Risk Indicators) =====
+(function(){
+  const n=realIdx.length; if(!n) return;
+  const G='g',Y='y',R='r';
+  const COL={g:'#3DD68C',y:'#F6C453',r:'#FF6B6B'};
+  const TXT={g:'Verde',y:'Amarillo',r:'Rojo'};
+  const fmtM=v=>'$'+(v/1e6).toFixed(1).replace('.',',')+'M';
+  const fx=(v,d)=>v.toFixed(d).replace('.',',');
+  const V=k=>realIdx.map(i=>D[k][i]);
+  const ven=V('ventas'),cogs=V('cogs'),adm=V('adm'),vta=V('vta'),fin=V('fin'),dep=V('dep');
+  const un=realIdx.map(i=>neto$(i));
+  const avg=a=>a.reduce((s,x)=>s+x,0)/(a.length||1);
+  const sumTo=(a,p)=>a.slice(0,p+1).reduce((s,x)=>s+x,0);
+  const sumWin=(a,p)=>a.slice(Math.max(0,p-2),p+1).reduce((s,x)=>s+x,0);
+  const CIERRE={cogs:'COGS',adm:'Gastos adm.',vta:'Gastos ventas',fin:'Gastos financieros',dif:'Dif. de cambio',dep:'Depreciación',imp:'Impuesto'};
+
+  const cobertura=(mbv,cf)=>cf>0?mbv/cf:null;
+  const KRIS=[
+    {name:'Caída de ventas',obj:'Ventas vs. promedio de los 3 meses previos',meta:'Verde ≥ −10% · Rojo < −30%',
+     calc:p=>{ if(p<1) return null; const m=avg(ven.slice(Math.max(0,p-3),p)); return m>0?ven[p]/m-1:null; },
+     st:v=>v>=-0.10?G:v>=-0.30?Y:R, fmt:v=>(v>=0?'+':'')+pct(v)},
+    {name:'Volatilidad de ventas',obj:'Coef. de variación de ventas (hasta 12 meses)',meta:'Verde < 0,25 · Rojo > 0,50',
+     calc:p=>{ const w=ven.slice(Math.max(0,p-11),p+1); if(w.length<3) return null; const m=avg(w); return m>0?Math.sqrt(avg(w.map(x=>(x-m)**2)))/m:null; },
+     st:v=>v<0.25?G:v<=0.5?Y:R, fmt:v=>fx(v,2)},
+    {name:'Descalce ventas-costos',obj:'|COGS % del mes − COGS % acumulado|',meta:'Verde ≤ 10 pp · Rojo > 25 pp o COGS > 100%',
+     calc:p=>{ if(!(ven[p]>0)) return null; const cm=cogs[p]/ven[p], ca=sumTo(cogs,p)/sumTo(ven,p); return {pp:Math.abs(cm-ca)*100,cm}; },
+     st:v=>(v.cm>1||v.pp>25)?R:v.pp>10?Y:G, fmt:v=>fx(v.pp,1)+' pp',
+     sub:(v,p)=>'COGS del mes '+pct(v.cm)+' · COGS prom. 3m '+pct(sumWin(cogs,p)/sumWin(ven,p))},
+    {name:'Cobertura de costos fijos',obj:'Margen bruto ÷ (ADM + gastos fin. + depreciación)',meta:'Verde ≥ 1,5x · Rojo < 1,0x',
+     calc:p=>cobertura(ven[p]-cogs[p],adm[p]+fin[p]+dep[p]),
+     st:v=>v>=1.5?G:v>=1?Y:R, fmt:v=>fx(v,1)+'x',
+     sub:(v,p)=>{ const c=cobertura(sumWin(ven,p)-sumWin(cogs,p),sumWin(adm,p)+sumWin(fin,p)+sumWin(dep,p)); return 'Prom. 3m '+(c==null?'—':fx(c,1)+'x'); }},
+    {name:'Margen de seguridad',obj:'(Ventas − punto de equilibrio) ÷ Ventas',meta:'Verde ≥ 30% · Rojo < 10%',
+     calc:p=>{ if(!(ven[p]>0)) return null; const mc=1-(cogs[p]+vta[p]+fin[p])/ven[p]; if(mc<=0) return -Infinity; return (ven[p]-(adm[p]+dep[p])/mc)/ven[p]; },
+     st:v=>v>=0.30?G:v>=0.10?Y:R, fmt:v=>isFinite(v)?pct(v):'MC negativo'},
+    {name:'Desvío gasto de administración',obj:'Gasto de administración del mes vs. meta $28M',meta:'Verde ≤ $28M · Rojo > $35M',
+     calc:p=>adm[p], st:v=>v<=28e6?G:v<=35e6?Y:R, fmt:fmtM},
+    {name:'Intensidad comercial',obj:'Gastos de ventas ÷ Ventas',meta:'Verde 4–7% · Rojo < 2% o > 10%',
+     calc:p=>ven[p]>0?vta[p]/ven[p]:null, st:v=>(v>=0.04&&v<=0.07)?G:(v>=0.02&&v<=0.10)?Y:R, fmt:pct},
+    {name:'Meses con pérdida',obj:'Meses con utilidad neta < 0 en los últimos 6',meta:'Verde 0 · Amarillo 1 · Rojo ≥ 2',
+     calc:p=>un.slice(Math.max(0,p-5),p+1).filter(x=>x<0).length, st:v=>v===0?G:v===1?Y:R, fmt:v=>String(v)},
+    {name:'Completitud del cierre',obj:'Partidas en $0 que en meses previos tenían valor',meta:'Verde 0 · Amarillo 1 · Rojo ≥ 2',
+     calc:p=>{ const f=Object.keys(CIERRE).filter(k=>{ const a=V(k); return a[p]===0&&a.slice(0,p).some(x=>x!==0); }); return {n:f.length,f}; },
+     st:v=>v.n===0?G:v.n===1?Y:R, fmt:v=>String(v.n), sub:v=>v.n?'En $0: '+v.f.map(k=>CIERRE[k]).join(', '):'Todas las partidas con datos'},
+  ];
+  KRIS.forEach(k=>{ k.vals=realIdx.map((_,p)=>k.calc(p)); k.sts=k.vals.map(v=>v==null?null:k.st(v)); });
+
+  const last=n-1;
+  document.getElementById('kri_range').textContent=MESES[realIdx[last]]+' 2026';
+  const cnt={g:0,y:0,r:0}; KRIS.forEach(k=>{ const s=k.sts[last]; if(s) cnt[s]++; });
+  document.getElementById('kri_count').innerHTML='<b style="color:'+COL.r+'">🔴 '+cnt.r+' en rojo</b><b style="color:'+COL.y+'">🟡 '+cnt.y+' en amarillo</b><b style="color:'+COL.g+'">🟢 '+cnt.g+' en verde</b>';
+
+  // ── tarjetas (último mes) ──
+  const cards=document.getElementById('kri_cards'); cards.innerHTML='';
+  KRIS.forEach((k,ix)=>{
+    const v=k.vals[last], s=k.sts[last];
+    const c=s?COL[s]:'var(--sub)';
+    const el=document.createElement('div'); el.className='kpi'; el.style.setProperty('--accent',c);
+    el.innerHTML='<div class="lbl">'+(ix+1)+' · '+k.name+'</div>'+
+      '<div class="val" style="color:'+c+'">'+(v==null?'—':k.fmt(v))+
+      (s?'<span class="kri-badge" style="background:'+c+'22;color:'+c+'">'+TXT[s]+'</span>':'')+'</div>'+
+      '<div class="meta">'+k.obj+'</div>'+
+      (k.sub&&v!=null?'<div class="meta" style="margin-top:3px;color:var(--txt)">'+k.sub(v,last)+'</div>':'')+
+      '<div class="meta" style="margin-top:3px">'+k.meta+'</div>';
+    cards.appendChild(el);
+  });
+
+  // ── matriz KRI × mes ──
+  const mt=document.getElementById('kri_matrix');
+  mt.innerHTML='<thead><tr><th>KRI</th>'+realIdx.map(i=>'<th>'+MESES[i].slice(0,3)+'</th>').join('')+'</tr></thead><tbody>'+
+    KRIS.map((k,ix)=>'<tr><td>'+(ix+1)+' · '+k.name+'</td>'+k.vals.map((v,p)=>'<td class="'+(k.sts[p]?'kri-'+k.sts[p]:'')+'">'+(v==null?'—':k.fmt(v))+'</td>').join('')+'</tr>').join('')+
+    '</tbody>';
+
+  // ── gráficos ──
+  const labels=realIdx.map(i=>MESES[i].slice(0,3));
+  const axis={x:{grid:{display:false},ticks:{color:'#8C95AC'}},y:{grid:{color:'#2E3447'},ticks:{color:'#8C95AC'}}};
+  const leg={position:'bottom',labels:{color:'#EAEEF6',boxWidth:12,font:{size:11}}};
+  const stCol=k=>k.sts.map(s=>s?COL[s]:'#5A6478');
+
+  const prom3=ven.map((_,p)=>p<1?null:avg(ven.slice(Math.max(0,p-3),p))/1e6);
+  new Chart(document.getElementById('chKri1'),{type:'bar',
+    data:{labels,datasets:[
+      {type:'line',label:'Promedio 3 meses previos',data:prom3,borderColor:'#F6C453',backgroundColor:'#F6C453',tension:0,pointRadius:3,borderWidth:2},
+      {label:'Ventas del mes',data:ven.map(v=>v/1e6),backgroundColor:stCol(KRIS[0]),borderRadius:3,maxBarThickness:42}]},
+    options:{responsive:true,maintainAspectRatio:false,scales:{...axis,y:{...axis.y,ticks:{...axis.y.ticks,callback:v=>'$'+v+'M'}}},
+      plugins:{legend:leg,tooltip:{callbacks:{label:c=>c.dataset.label+': $'+fx(c.raw,1)+'M'}}}}});
+
+  new Chart(document.getElementById('chKri3'),{type:'bar',
+    data:{labels,datasets:[
+      {type:'line',label:'COGS % acumulado',data:ven.map((_,p)=>sumTo(cogs,p)/sumTo(ven,p)*100),borderColor:'#19C7B4',backgroundColor:'#19C7B4',tension:0,pointRadius:3,borderWidth:2},
+      {label:'COGS % del mes',data:ven.map((v,p)=>v>0?cogs[p]/v*100:null),backgroundColor:stCol(KRIS[2]),borderRadius:3,maxBarThickness:42}]},
+    options:{responsive:true,maintainAspectRatio:false,scales:{...axis,y:{...axis.y,ticks:{...axis.y.ticks,callback:v=>v+'%'}}},
+      plugins:{legend:leg,tooltip:{callbacks:{label:c=>c.dataset.label+': '+fx(c.raw,1)+'%'}}}}});
+
+  const flat=v=>labels.map(()=>v);
+  new Chart(document.getElementById('chKri6'),{type:'bar',
+    data:{labels,datasets:[
+      {type:'line',label:'Meta $28M',data:flat(28),borderColor:'#3DD68C',borderDash:[6,4],pointRadius:0,borderWidth:1.5},
+      {type:'line',label:'Límite rojo $35M',data:flat(35),borderColor:'#FF6B6B',borderDash:[6,4],pointRadius:0,borderWidth:1.5},
+      {label:'Gasto de administración',data:adm.map(v=>v/1e6),backgroundColor:stCol(KRIS[5]),borderRadius:3,maxBarThickness:42}]},
+    options:{responsive:true,maintainAspectRatio:false,scales:{...axis,y:{...axis.y,beginAtZero:true,ticks:{...axis.y.ticks,callback:v=>'$'+v+'M'}}},
+      plugins:{legend:leg,tooltip:{callbacks:{label:c=>c.dataset.label+': $'+fx(c.raw,1)+'M'}}}}});
+
+  function gauge(id,valId,k,max,label){
+    const v=k.vals[last], s=k.sts[last], c=s?COL[s]:'#5A6478';
+    const x=Math.max(0,Math.min(isFinite(v)?v:0,max));
+    new Chart(document.getElementById(id),{type:'doughnut',
+      data:{datasets:[{data:[x,max-x],backgroundColor:[c,'#2E3447'],borderWidth:0}]},
+      options:{responsive:true,maintainAspectRatio:false,rotation:-90,circumference:180,cutout:'72%',
+        plugins:{legend:{display:false},tooltip:{enabled:false}}}});
+    const el=document.getElementById(valId); el.textContent=v==null?'—':label(v); el.style.color=c;
+  }
+  gauge('chKri4','g4_val',KRIS[3],5,v=>fx(v,1)+'x');
+  gauge('chKri5','g5_val',KRIS[4],1,v=>isFinite(v)?pct(v):'MC negativo');
 })();
 
 // ===== Tabs =====
